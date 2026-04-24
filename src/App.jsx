@@ -17,7 +17,9 @@ async function requestJson(path, options = {}) {
   const data = rawText ? JSON.parse(rawText) : null
 
   if (!response.ok) {
-    throw new Error(data?.error || `Request failed with status ${response.status}`)
+    throw new Error(
+      data?.error || `Request failed with status ${response.status}`,
+    )
   }
 
   return data
@@ -34,7 +36,9 @@ function App() {
   const [records, setRecords] = useState([])
   const [selectedId, setSelectedId] = useState(null)
   const [payloadText, setPayloadText] = useState(defaultPayload)
-  const [status, setStatus] = useState('Bereit. Wähle eine Tabelle und lade Daten.')
+  const [status, setStatus] = useState(
+    'Bereit. Wähle eine Tabelle und lade Daten.',
+  )
   const [health, setHealth] = useState('Prüfe Backend...')
   const [isLoading, setIsLoading] = useState(false)
 
@@ -45,7 +49,11 @@ function App() {
       try {
         const data = await requestJson('/health')
         if (!ignore) {
-          setHealth(data.status === 'ok' ? 'Backend erreichbar' : 'Backend antwortet unerwartet')
+          setHealth(
+            data.status === 'ok'
+              ? 'Backend erreichbar'
+              : 'Backend antwortet unerwartet',
+          )
         }
       } catch {
         if (!ignore) {
@@ -199,7 +207,9 @@ function App() {
 
   function selectRecord(record) {
     if (record.id === undefined || record.id === null) {
-      setStatus('Dieser Datensatz hat keine id und kann nicht direkt bearbeitet werden.')
+      setStatus(
+        'Dieser Datensatz hat keine id und kann nicht direkt bearbeitet werden.',
+      )
       return
     }
 
@@ -222,8 +232,8 @@ function App() {
           <p className="eyebrow">Online Speiseplan</p>
           <h1>React-Frontend für dein Express/PostgreSQL-Backend</h1>
           <p className="lead">
-            Diese Oberfläche spricht direkt mit deinen generischen CRUD-Routen unter{' '}
-            <span>/api/:table</span>.
+            Diese Oberfläche spricht direkt mit deinen generischen CRUD-Routen
+            unter <span>/api/:table</span>.
           </p>
         </div>
 
@@ -262,7 +272,11 @@ function App() {
           </label>
 
           <div className="button-row">
-            <button type="button" onClick={() => loadRecords()} disabled={isLoading || !tableName.trim()}>
+            <button
+              type="button"
+              onClick={() => loadRecords()}
+              disabled={isLoading || !tableName.trim()}
+            >
               Daten laden
             </button>
           </div>
@@ -275,7 +289,8 @@ function App() {
           <div className="hint-box">
             <strong>Voraussetzung</strong>
             <p>
-              Deine Tabelle sollte eine Spalte <code>id</code> besitzen, weil das Backend für Update und Delete darauf zugreift.
+              Deine Tabelle sollte eine Spalte <code>id</code> besitzen, weil
+              das Backend für Update und Delete darauf zugreift.
             </p>
           </div>
         </article>
@@ -298,13 +313,27 @@ function App() {
           </label>
 
           <div className="button-row">
-            <button type="button" onClick={createRecord} disabled={isLoading || !tableName.trim()}>
+            <button
+              type="button"
+              onClick={createRecord}
+              disabled={isLoading || !tableName.trim()}
+            >
               Neu anlegen
             </button>
-            <button type="button" className="secondary" onClick={updateRecord} disabled={isLoading || !selectedId}>
+            <button
+              type="button"
+              className="secondary"
+              onClick={updateRecord}
+              disabled={isLoading || !selectedId}
+            >
               Aktualisieren
             </button>
-            <button type="button" className="danger" onClick={deleteRecord} disabled={isLoading || !selectedId}>
+            <button
+              type="button"
+              className="danger"
+              onClick={deleteRecord}
+              disabled={isLoading || !selectedId}
+            >
               Löschen
             </button>
           </div>
@@ -322,7 +351,10 @@ function App() {
 
         {records.length === 0 ? (
           <div className="empty-state">
-            <p>Keine Daten geladen. Trage einen Tabellennamen ein und lade die Datensätze.</p>
+            <p>
+              Keine Daten geladen. Trage einen Tabellennamen ein und lade die
+              Datensätze.
+            </p>
           </div>
         ) : (
           <div className="table-wrap">
@@ -338,11 +370,15 @@ function App() {
                 {records.map((record) => (
                   <tr
                     key={record.id ?? JSON.stringify(record)}
-                    className={String(record.id) === selectedId ? 'is-selected' : ''}
+                    className={
+                      String(record.id) === selectedId ? 'is-selected' : ''
+                    }
                     onClick={() => selectRecord(record)}
                   >
                     {columns.map((column) => (
-                      <td key={`${record.id ?? column}-${column}`}>{formatValue(record[column])}</td>
+                      <td key={`${record.id ?? column}-${column}`}>
+                        {formatValue(record[column])}
+                      </td>
                     ))}
                   </tr>
                 ))}
