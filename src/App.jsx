@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import './App.css'
+import { useEffect, useMemo, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -46,183 +46,39 @@ function filterByDate(dishes, targetDate) {
   return dishes.filter((d) => d.dish_date && String(d.dish_date).slice(0, 10) === iso)
 }
 
-// ─── Kundenkarte ──────────────────────────────────────────────────────────────
-
-function DishCard({ dish }) {
+function DishCard({ dish, index }) {
   const price = formatPrice(dish.price)
   return (
-    <article className="dish-card">
-      <div className="dish-card-topline">
-        <span className="dish-badge ghost">Nr. {dish.pos ?? '–'}</span>
-        {price ? <strong className="dish-price">{price}</strong> : null}
-      </div>
-      <h3>{dish.title || 'Gericht'}</h3>
-      {dish.description ? <p>{dish.description}</p> : null}
-    </article>
-  )
-}
+    <motion.article
+      layout
+      initial={{ opacity: 0, y: 24, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 10 }}
+      transition={{ duration: 0.35, delay: index * 0.05, ease: 'easeOut' }}
+      className="group relative overflow-hidden rounded-3xl border border-amber-200/20 bg-linear-to-b from-amber-50/10 to-amber-950/25 p-6 shadow-[0_20px_45px_rgba(0,0,0,0.35)]"
+    >
+      <div className="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-amber-200/10 blur-2xl transition group-hover:bg-amber-100/15" />
 
-// ─── Admin-Formular ───────────────────────────────────────────────────────────
-
-const emptyForm = {
-  dish_date: toISODateOnly(new Date()),
-  title: '',
-  description: '',
-  price: '',
-  pos: 1,
-}
-
-function DishForm({ initial, onSave, onDelete, onCancel }) {
-  const [form, setForm] = useState(
-    initial
-      ? {
-          dish_date: String(initial.dish_date ?? '').slice(0, 10),
-          title: initial.title ?? '',
-          description: initial.description ?? '',
-          price: initial.price ?? '',
-          pos: initial.pos ?? 1,
-        }
-      : emptyForm,
-  )
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState(null)
-
-  function set(key, value) {
-    setForm((prev) => ({ ...prev, [key]: value }))
-  }
-
-  async function handleSave(event) {
-    event.preventDefault()
-    setError(null)
-    setBusy(true)
-    try {
-      const payload = {
-        dish_date: form.dish_date,
-        title: form.title.trim(),
-        description: form.description.trim() || null,
-        price: parseFloat(String(form.price).replace(',', '.')),
-        pos: parseInt(form.pos, 10) || 1,
-      }
-      if (!payload.title) throw new Error('Titel ist erforderlich.')
-      if (!Number.isFinite(payload.price)) throw new Error('Preis muss eine Zahl sein.')
-      await onSave(payload)
-    } catch (err) {
-      setError(err.message)
-      setBusy(false)
-    }
-  }
-
-  async function handleDelete() {
-    if (!window.confirm('Eintrag wirklich löschen?')) return
-    setError(null)
-    setBusy(true)
-    try {
-      await onDelete()
-    } catch (err) {
-      setError(err.message)
-      setBusy(false)
-    }
-  }
-
-  const isEdit = Boolean(initial?.id)
-
-  return (
-    <form className="dish-form" onSubmit={handleSave}>
-      <div className="dish-form-grid">
-        <label className="field">
-          <span>Datum</span>
-          <input type="date" value={form.dish_date} onChange={(e) => set('dish_date', e.target.value)} required />
-        </label>
-
-        <label className="field">
-          <span>Position</span>
-          <input type="number" min="1" value={form.pos} onChange={(e) => set('pos', e.target.value)} required />
-        </label>
-
-        <label className="field dish-form-title">
-          <span>Titel</span>
-          <input
-            type="text"
-            value={form.title}
-            onChange={(e) => set('title', e.target.value)}
-            placeholder="Schnitzel mit Pommes"
-            required
-          />
-        </label>
-
-        <label className="field">
-          <span>Preis (€)</span>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            value={form.price}
-            onChange={(e) => set('price', e.target.value)}
-            placeholder="9.90"
-            required
-          />
-        </label>
-
-        <label className="field dish-form-desc">
-          <span>Beschreibung (optional)</span>
-          <textarea
-            value={form.description}
-            onChange={(e) => set('description', e.target.value)}
-            placeholder="z. B. Beilagen, Allergene…"
-          />
-        </label>
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <span className="rounded-full border border-amber-200/25 bg-amber-100/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-amber-100/90">
+          Position {dish.pos ?? '-'}
+        </span>
+        {price ? <strong className="text-sm font-extrabold text-orange-200">{price}</strong> : null}
       </div>
 
-      {error ? <p className="form-error">{error}</p> : null}
-
-      <div className="button-row">
-        <button type="submit" disabled={busy}>
-          {isEdit ? 'Speichern' : 'Neu anlegen'}
-        </button>
-        {isEdit ? (
-          <button type="button" className="danger" onClick={handleDelete} disabled={busy}>
-            Löschen
-          </button>
-        ) : null}
-        <button type="button" className="secondary" onClick={onCancel} disabled={busy}>
-          Abbrechen
-        </button>
-      </div>
-    </form>
+      <h3 className="font-['Fraunces'] text-2xl leading-tight text-orange-50">{dish.title || 'Gericht'}</h3>
+      {dish.description ? <p className="mt-3 text-sm leading-relaxed text-amber-100/80">{dish.description}</p> : null}
+    </motion.article>
   )
 }
-
-// ─── Admin-Tabellenzeile ──────────────────────────────────────────────────────
-
-function AdminRow({ dish, onSelect }) {
-  return (
-    <tr onClick={() => onSelect(dish)}>
-      <td>{String(dish.dish_date).slice(0, 10)}</td>
-      <td>{dish.pos}</td>
-      <td>{dish.title}</td>
-      <td>{formatPrice(dish.price)}</td>
-      <td className="row-hint">bearbeiten →</td>
-    </tr>
-  )
-}
-
-// ─── App ─────────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [viewMode, setViewMode] = useState('kunde')
-
-  // Kundenseite
   const [selectedDate, setSelectedDate] = useState(() => new Date())
   const [allDishes, setAllDishes] = useState([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
 
-  // Admin
-  const [editDish, setEditDish] = useState(null) // null=zu, {}=neu, dish=edit
-
-  const todayDishes = filterByDate(allDishes, selectedDate)
-
-  async function loadAll() {
+  async function refreshDishes() {
     setLoading(true)
     setLoadError(null)
     try {
@@ -235,207 +91,151 @@ export default function App() {
     }
   }
 
-  useEffect(() => { loadAll() }, [])
+  useEffect(() => {
+    let isMounted = true
+
+    const loadInitial = async () => {
+      try {
+        const data = await requestJson('/api/daily_dishes')
+        if (!isMounted) return
+        setAllDishes(Array.isArray(data) ? data : [])
+        setLoadError(null)
+      } catch (err) {
+        if (!isMounted) return
+        setLoadError(err.message)
+      } finally {
+        if (isMounted) setLoading(false)
+      }
+    }
+
+    void loadInitial()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   function shiftDate(days) {
     setSelectedDate((prev) => addDays(prev, days))
   }
 
-  function handleDateInput(e) {
-    const parsed = new Date(e.target.value)
+  function handleDateInput(event) {
+    const parsed = new Date(event.target.value)
     if (!Number.isNaN(parsed.getTime())) setSelectedDate(parsed)
   }
 
-  async function handleSave(payload) {
-    if (editDish?.id) {
-      await requestJson(`/api/daily_dishes/${editDish.id}`, {
-        method: 'PUT',
-        body: JSON.stringify(payload),
-      })
-    } else {
-      await requestJson('/api/daily_dishes', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      })
-    }
-    setEditDish(null)
-    await loadAll()
-  }
-
-  async function handleDelete() {
-    if (!editDish?.id) return
-    await requestJson(`/api/daily_dishes/${editDish.id}`, { method: 'DELETE' })
-    setEditDish(null)
-    await loadAll()
-  }
+  const todayDishes = useMemo(
+    () => filterByDate(allDishes, selectedDate).slice().sort((a, b) => (a.pos ?? 0) - (b.pos ?? 0)),
+    [allDishes, selectedDate],
+  )
 
   return (
-    <main className="app-shell">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_20%_0%,rgba(245,158,11,0.16),transparent_45%),radial-gradient(circle_at_80%_8%,rgba(180,83,9,0.2),transparent_40%),linear-gradient(180deg,#1a120d_0%,#25170f_55%,#2c1b11_100%)] px-4 py-6 md:px-8 md:py-10">
+      <div className="mx-auto w-full max-w-6xl">
+        <motion.section
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: 'easeOut' }}
+          className="rounded-[34px] border border-amber-100/15 bg-[linear-gradient(130deg,rgba(255,251,235,0.06),rgba(120,53,15,0.22))] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.33)] backdrop-blur md:p-8"
+        >
+          <div className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-amber-200/90">Online Speiseplan</p>
+              <h1 className="mt-2 font-['Fraunces'] text-4xl leading-[1.03] text-orange-50 md:text-6xl">Kantine mit Seele</h1>
+              <p className="mt-4 max-w-xl text-sm leading-relaxed text-amber-100/80 md:text-base">
+                Frisch gekocht, taeglich neu. Waehle ein Datum und entdecke die Gerichte in warmen Farben.
+              </p>
+            </div>
+            <div className="grid gap-3">
+              <article className="rounded-2xl border border-amber-100/20 bg-amber-50/5 p-4">
+                <span className="block text-xs uppercase tracking-[0.14em] text-amber-200/80">Tag</span>
+                <strong className="mt-1 block font-semibold text-orange-50">{formatDateLabel(selectedDate)}</strong>
+              </article>
+              <article className="rounded-2xl border border-amber-100/20 bg-amber-50/5 p-4">
+                <span className="block text-xs uppercase tracking-[0.14em] text-amber-200/80">Gerichte heute</span>
+                <strong className="mt-1 block font-semibold text-orange-50">{loading ? '...' : `${todayDishes.length} Gerichte`}</strong>
+              </article>
+            </div>
+          </div>
+        </motion.section>
 
-      {/* Header */}
-      <section className="hero-panel">
-        <div>
-          <p className="eyebrow">Online Speiseplan</p>
-          <h1>Heute auf dem Teller</h1>
-          <div className="view-switch">
+        <motion.section
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.08, duration: 0.45, ease: 'easeOut' }}
+          className="mt-5 rounded-3xl border border-amber-100/15 bg-amber-900/25 p-4 shadow-[0_18px_45px_rgba(0,0,0,0.3)] md:p-5"
+        >
+          <div className="flex items-center gap-3 md:gap-4">
             <button
               type="button"
-              className={viewMode === 'kunde' ? 'secondary is-active' : 'secondary'}
-              onClick={() => setViewMode('kunde')}
+              className="grid h-11 w-11 place-items-center rounded-full bg-orange-300/20 text-xl text-orange-100 transition hover:-translate-y-0.5 hover:bg-orange-300/30"
+              onClick={() => shiftDate(-1)}
+              aria-label="Vorheriger Tag"
             >
-              Speiseplan
+              -
             </button>
+            <div className="flex-1 text-center">
+              <strong className="block text-base font-bold text-orange-50 md:text-lg">{formatDateLabel(selectedDate)}</strong>
+              <input
+                type="date"
+                className="mt-2 rounded-xl border border-amber-100/20 bg-black/25 px-3 py-2 text-sm text-orange-50 outline-none transition focus:border-orange-200/60"
+                value={toISODateOnly(selectedDate)}
+                onChange={handleDateInput}
+                aria-label="Datum waehlen"
+              />
+            </div>
             <button
               type="button"
-              className={viewMode === 'admin' ? 'secondary is-active' : 'secondary'}
-              onClick={() => setViewMode('admin')}
+              className="grid h-11 w-11 place-items-center rounded-full bg-orange-300/20 text-xl text-orange-100 transition hover:-translate-y-0.5 hover:bg-orange-300/30"
+              onClick={() => shiftDate(1)}
+              aria-label="Naechster Tag"
             >
-              Verwaltung
+              +
             </button>
           </div>
-        </div>
+        </motion.section>
 
-        <div className="hero-status-grid">
-          <article>
-            <span>Tag</span>
-            <strong>{formatDateLabel(selectedDate)}</strong>
-          </article>
-          <article>
-            <span>Gerichte heute</span>
-            <strong>{loading ? '…' : `${todayDishes.length} Gerichte`}</strong>
-          </article>
-          <article>
-            <span>Gesamt in DB</span>
-            <strong>{loading ? '…' : `${allDishes.length} Einträge`}</strong>
-          </article>
-        </div>
-      </section>
-
-      {/* Datumsnavigation */}
-      <div className="panel date-nav-panel">
-        <button
-          type="button"
-          className="date-nav-btn secondary"
-          onClick={() => shiftDate(-1)}
-          aria-label="Vorheriger Tag"
-        >
-          −
-        </button>
-        <div className="date-nav-center">
-          <strong className="date-nav-label">{formatDateLabel(selectedDate)}</strong>
-          <input
-            type="date"
-            className="date-nav-input"
-            value={toISODateOnly(selectedDate)}
-            onChange={handleDateInput}
-            aria-label="Datum wählen"
-          />
-        </div>
-        <button
-          type="button"
-          className="date-nav-btn secondary"
-          onClick={() => shiftDate(1)}
-          aria-label="Nächster Tag"
-        >
-          +
-        </button>
-      </div>
-
-      {/* Kundenansicht */}
-      {viewMode === 'kunde' && (
-        <section className="panel customer-panel">
-          <div className="panel-header customer-panel-header">
+        <section className="mt-6 rounded-3xl border border-amber-100/15 bg-[linear-gradient(180deg,rgba(255,251,235,0.04),rgba(41,23,15,0.65))] p-5 shadow-[0_22px_65px_rgba(0,0,0,0.35)] md:p-7">
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <p className="panel-kicker">Speiseplan</p>
-              <h2>Gerichte am {formatDateLabel(selectedDate)}</h2>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-200/90">Speiseplan</p>
+              <h2 className="mt-1 font-['Fraunces'] text-2xl text-orange-50 md:text-3xl">Gerichte am {formatDateLabel(selectedDate)}</h2>
             </div>
-            <button type="button" onClick={loadAll} disabled={loading}>
+            <button
+              type="button"
+              className="rounded-full border border-orange-100/25 bg-orange-200/15 px-4 py-2 text-sm font-semibold text-orange-100 transition hover:-translate-y-0.5 hover:bg-orange-200/25 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={refreshDishes}
+              disabled={loading}
+            >
               Aktualisieren
             </button>
           </div>
 
           {loadError ? (
-            <div className="empty-state"><p>Fehler: {loadError}</p></div>
+            <div className="rounded-2xl border border-rose-300/30 bg-rose-900/25 p-4 text-rose-100">Fehler: {loadError}</div>
           ) : loading ? (
-            <div className="empty-state"><p>Lade…</p></div>
-          ) : todayDishes.length === 0 ? (
-            <div className="empty-state">
-              <p>Keine Gerichte für diesen Tag eingetragen.</p>
-            </div>
-          ) : (
-            <div className="dish-grid">
-              {todayDishes
-                .slice()
-                .sort((a, b) => (a.pos ?? 0) - (b.pos ?? 0))
-                .map((dish) => (
-                  <DishCard key={dish.id} dish={dish} />
-                ))}
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* Verwaltungsansicht */}
-      {viewMode === 'admin' && (
-        <section className="panel admin-section">
-          <div className="panel-header">
-            <div>
-              <p className="panel-kicker">Verwaltung</p>
-              <h2>Einträge in daily_dishes</h2>
-            </div>
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => setEditDish({})}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="rounded-2xl border border-amber-100/15 bg-amber-50/5 p-4 text-amber-100/80"
             >
-              + Neuer Eintrag
-            </button>
-          </div>
-
-          {editDish !== null && (
-            <DishForm
-              initial={editDish?.id ? editDish : null}
-              onSave={handleSave}
-              onDelete={handleDelete}
-              onCancel={() => setEditDish(null)}
-            />
-          )}
-
-          {allDishes.length === 0 ? (
-            <div className="empty-state"><p>Keine Einträge vorhanden.</p></div>
-          ) : (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Datum</th>
-                    <th>Pos</th>
-                    <th>Titel</th>
-                    <th>Preis</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {allDishes
-                    .slice()
-                    .sort((a, b) => {
-                      const d = String(b.dish_date).localeCompare(String(a.dish_date))
-                      return d !== 0 ? d : (a.pos ?? 0) - (b.pos ?? 0)
-                    })
-                    .map((dish) => (
-                      <AdminRow
-                        key={dish.id}
-                        dish={dish}
-                        onSelect={setEditDish}
-                      />
-                    ))}
-                </tbody>
-              </table>
+              Lade...
+            </motion.div>
+          ) : todayDishes.length === 0 ? (
+            <div className="rounded-2xl border border-amber-100/15 bg-amber-50/5 p-4 text-amber-100/80">
+              Keine Gerichte fuer diesen Tag eingetragen.
             </div>
+          ) : (
+            <motion.div layout className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <AnimatePresence mode="popLayout">
+                {todayDishes.map((dish, index) => (
+                  <DishCard key={dish.id} dish={dish} index={index} />
+                ))}
+              </AnimatePresence>
+            </motion.div>
           )}
         </section>
-      )}
-
+      </div>
     </main>
   )
 }
