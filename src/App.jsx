@@ -1,465 +1,293 @@
 import { useEffect, useState } from 'react'
 import './App.css'
 
-const defaultTable = 'daily_dishes'
-const defaultPayload = '{\n  "name": "Schnitzel",\n  "preis": 12.5\n}'
-const todayLabel = new Intl.DateTimeFormat('de-DE', {
-  weekday: 'long',
-  day: '2-digit',
-  month: 'long',
-  year: 'numeric',
-}).format(new Date())
+// ─── helpers ─────────────────────────────────────────────────────────────────
 
-const dateFieldCandidates = ['dish_date', 'datum', 'date', 'menu_date', 'gueltig_am']
-const weekdayFieldCandidates = ['wochentag', 'weekday', 'day', 'tag']
-const titleFieldCandidates = ['title', 'name', 'gericht', 'titel', 'bezeichnung']
-const descriptionFieldCandidates = [
-  'description',
-  'beschreibung',
-  'details',
-  'info',
-]
-const priceFieldCandidates = ['price', 'preis', 'kosten']
-const categoryFieldCandidates = ['kategorie', 'category', 'typ']
+function formatDateLabel(date) {
+  return new Intl.DateTimeFormat('de-DE', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  }).format(date)
+}
+
+function toISODateOnly(date) {
+  return date.toISOString().slice(0, 10)
+}
+
+function addDays(date, days) {
+  const next = new Date(date)
+  next.setDate(next.getDate() + days)
+  return next
+}
 
 async function requestJson(path, options = {}) {
   const response = await fetch(path, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-    },
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
     ...options,
   })
-
   const rawText = await response.text()
   const data = rawText ? JSON.parse(rawText) : null
-
   if (!response.ok) {
-    throw new Error(
-      data?.error || `Request failed with status ${response.status}`,
-    )
+    throw new Error(data?.error || `Request failed with status ${response.status}`)
   }
-
   return data
 }
 
-function formatValue(value) {
-  if (value === null) return 'null'
-  if (typeof value === 'object') return JSON.stringify(value)
-  return String(value)
+function formatPrice(value) {
+  const num = Number(value)
+  if (!Number.isFinite(num)) return null
+  return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(num)
 }
 
-function normalizeKey(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
+function filterByDate(dishes, targetDate) {
+  const iso = toISODateOnly(targetDate)
+  return dishes.filter((d) => d.dish_date && String(d.dish_date).slice(0, 10) === iso)
 }
 
-function normalizeText(value) {
-  return normalizeKey(value)
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-}
+// ─── Kundenkarte ──────────────────────────────────────────────────────────────
 
-function findField(record, candidates) {
-  const entries = Object.entries(record || {})
-  return entries.find(([key]) => candidates.includes(normalizeKey(key)))
-}
-
-function parseAsDate(value) {
-  if (!value) return null
-
-  const date = new Date(value)
-  if (!Number.isNaN(date.getTime())) {
-    return date
-  }
-
-  if (typeof value === 'string') {
-    const match = value.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/)
-    if (match) {
-      const [, day, month, year] = match
-      const fallback = new Date(Number(year), Number(month) - 1, Number(day))
-      return Number.isNaN(fallback.getTime()) ? null : fallback
-    }
-  }
-
-  return null
-}
-
-function isSameDay(dateA, dateB) {
-  return (
-    dateA.getFullYear() === dateB.getFullYear() &&
-    dateA.getMonth() === dateB.getMonth() &&
-    dateA.getDate() === dateB.getDate()
-  )
-}
-
-function getWeekdayAliases(date) {
-  const german = new Intl.DateTimeFormat('de-DE', { weekday: 'long' }).format(
-    date,
-  )
-  const english = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(
-    date,
-  )
-
-  return new Set([
-    normalizeText(german),
-    normalizeText(english),
-    normalizeText(german.slice(0, 2)),
-    normalizeText(german.slice(0, 3)),
-    normalizeText(english.slice(0, 3)),
-  ])
-}
-
-function priceLabel(record) {
-  const field = findField(record, priceFieldCandidates)
-  if (
-    !field ||
-    field[1] === null ||
-    field[1] === undefined ||
-    field[1] === ''
-  ) {
-    return null
-  }
-
-  const value = Number(field[1])
-  if (Number.isFinite(value)) {
-    return new Intl.NumberFormat('de-DE', {
-      style: 'currency',
-      currency: 'EUR',
-    }).format(value)
-  }
-
-  return String(field[1])
-}
-
-function dishTitle(record) {
-  const field = findField(record, titleFieldCandidates)
-  return field?.[1] ? String(field[1]) : `Gericht ${record.id ?? ''}`.trim()
-}
-
-function dishDescription(record) {
-  const field = findField(record, descriptionFieldCandidates)
-  return field?.[1] ? String(field[1]) : 'Heute frisch aus der Küche.'
-}
-
-function dishCategory(record) {
-  const field = findField(record, categoryFieldCandidates)
-  return field?.[1] ? String(field[1]) : null
-}
-
-function deriveTodayMenu(records) {
-  const today = new Date()
-  const weekdayAliases = getWeekdayAliases(today)
-
-  const withDate = records.filter((record) => {
-    const field = findField(record, dateFieldCandidates)
-    if (!field) return false
-    const parsed = parseAsDate(field[1])
-    return parsed ? isSameDay(parsed, today) : false
-  })
-
-  if (withDate.length > 0) {
-    return {
-      items: withDate,
-      reason: 'date-match',
-      hint: 'Gefiltert nach Datum.',
-    }
-  }
-
-  const withWeekday = records.filter((record) => {
-    const field = findField(record, weekdayFieldCandidates)
-    if (!field) return false
-    return weekdayAliases.has(normalizeText(field[1]))
-  })
-
-  if (withWeekday.length > 0) {
-    return {
-      items: withWeekday,
-      reason: 'weekday-match',
-      hint: 'Gefiltert nach Wochentag.',
-    }
-  }
-
-  return {
-    items: records,
-    reason: 'fallback-all',
-    hint: 'Keine Datumsspalte erkannt. Es werden alle Gerichte aus daily_dishes angezeigt.',
-  }
-}
-
-function CustomerDishCard({ dish }) {
-  const price = priceLabel(dish)
-  const category = dishCategory(dish)
-
+function DishCard({ dish }) {
+  const price = formatPrice(dish.price)
   return (
     <article className="dish-card">
       <div className="dish-card-topline">
-        {category ? (
-          <span className="dish-badge">{category}</span>
-        ) : (
-          <span className="dish-badge ghost">Tagesgericht</span>
-        )}
+        <span className="dish-badge ghost">Nr. {dish.pos ?? '–'}</span>
         {price ? <strong className="dish-price">{price}</strong> : null}
       </div>
-      <h3>{dishTitle(dish)}</h3>
-      <p>{dishDescription(dish)}</p>
+      <h3>{dish.title || 'Gericht'}</h3>
+      {dish.description ? <p>{dish.description}</p> : null}
     </article>
   )
 }
 
-function App() {
-  const [viewMode, setViewMode] = useState('kunde')
-  const [tableName, setTableName] = useState(defaultTable)
-  const [records, setRecords] = useState([])
-  const [selectedId, setSelectedId] = useState(null)
-  const [payloadText, setPayloadText] = useState(defaultPayload)
-  const [status, setStatus] = useState(
-    'Bereit. Wähle eine Tabelle und lade Daten.',
+// ─── Admin-Formular ───────────────────────────────────────────────────────────
+
+const emptyForm = {
+  dish_date: toISODateOnly(new Date()),
+  title: '',
+  description: '',
+  price: '',
+  pos: 1,
+}
+
+function DishForm({ initial, onSave, onDelete, onCancel }) {
+  const [form, setForm] = useState(
+    initial
+      ? {
+          dish_date: String(initial.dish_date ?? '').slice(0, 10),
+          title: initial.title ?? '',
+          description: initial.description ?? '',
+          price: initial.price ?? '',
+          pos: initial.pos ?? 1,
+        }
+      : emptyForm,
   )
-  const [health, setHealth] = useState('Prüfe Backend...')
-  const [isLoading, setIsLoading] = useState(false)
-  const [customerMenu, setCustomerMenu] = useState([])
-  const [customerInfo, setCustomerInfo] = useState('Lade Tagesgerichte...')
-  const [customerLoading, setCustomerLoading] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
 
-  async function fetchCustomerMenu() {
-    setCustomerLoading(true)
+  function set(key, value) {
+    setForm((prev) => ({ ...prev, [key]: value }))
+  }
 
+  async function handleSave(event) {
+    event.preventDefault()
+    setError(null)
+    setBusy(true)
+    try {
+      const payload = {
+        dish_date: form.dish_date,
+        title: form.title.trim(),
+        description: form.description.trim() || null,
+        price: parseFloat(String(form.price).replace(',', '.')),
+        pos: parseInt(form.pos, 10) || 1,
+      }
+      if (!payload.title) throw new Error('Titel ist erforderlich.')
+      if (!Number.isFinite(payload.price)) throw new Error('Preis muss eine Zahl sein.')
+      await onSave(payload)
+    } catch (err) {
+      setError(err.message)
+      setBusy(false)
+    }
+  }
+
+  async function handleDelete() {
+    if (!window.confirm('Eintrag wirklich löschen?')) return
+    setError(null)
+    setBusy(true)
+    try {
+      await onDelete()
+    } catch (err) {
+      setError(err.message)
+      setBusy(false)
+    }
+  }
+
+  const isEdit = Boolean(initial?.id)
+
+  return (
+    <form className="dish-form" onSubmit={handleSave}>
+      <div className="dish-form-grid">
+        <label className="field">
+          <span>Datum</span>
+          <input type="date" value={form.dish_date} onChange={(e) => set('dish_date', e.target.value)} required />
+        </label>
+
+        <label className="field">
+          <span>Position</span>
+          <input type="number" min="1" value={form.pos} onChange={(e) => set('pos', e.target.value)} required />
+        </label>
+
+        <label className="field dish-form-title">
+          <span>Titel</span>
+          <input
+            type="text"
+            value={form.title}
+            onChange={(e) => set('title', e.target.value)}
+            placeholder="Schnitzel mit Pommes"
+            required
+          />
+        </label>
+
+        <label className="field">
+          <span>Preis (€)</span>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={form.price}
+            onChange={(e) => set('price', e.target.value)}
+            placeholder="9.90"
+            required
+          />
+        </label>
+
+        <label className="field dish-form-desc">
+          <span>Beschreibung (optional)</span>
+          <textarea
+            value={form.description}
+            onChange={(e) => set('description', e.target.value)}
+            placeholder="z. B. Beilagen, Allergene…"
+          />
+        </label>
+      </div>
+
+      {error ? <p className="form-error">{error}</p> : null}
+
+      <div className="button-row">
+        <button type="submit" disabled={busy}>
+          {isEdit ? 'Speichern' : 'Neu anlegen'}
+        </button>
+        {isEdit ? (
+          <button type="button" className="danger" onClick={handleDelete} disabled={busy}>
+            Löschen
+          </button>
+        ) : null}
+        <button type="button" className="secondary" onClick={onCancel} disabled={busy}>
+          Abbrechen
+        </button>
+      </div>
+    </form>
+  )
+}
+
+// ─── Admin-Tabellenzeile ──────────────────────────────────────────────────────
+
+function AdminRow({ dish, onSelect }) {
+  return (
+    <tr onClick={() => onSelect(dish)}>
+      <td>{String(dish.dish_date).slice(0, 10)}</td>
+      <td>{dish.pos}</td>
+      <td>{dish.title}</td>
+      <td>{formatPrice(dish.price)}</td>
+      <td className="row-hint">bearbeiten →</td>
+    </tr>
+  )
+}
+
+// ─── App ─────────────────────────────────────────────────────────────────────
+
+export default function App() {
+  const [viewMode, setViewMode] = useState('kunde')
+
+  // Kundenseite
+  const [selectedDate, setSelectedDate] = useState(() => new Date())
+  const [allDishes, setAllDishes] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState(null)
+
+  // Admin
+  const [editDish, setEditDish] = useState(null) // null=zu, {}=neu, dish=edit
+
+  const todayDishes = filterByDate(allDishes, selectedDate)
+
+  async function loadAll() {
+    setLoading(true)
+    setLoadError(null)
     try {
       const data = await requestJson('/api/daily_dishes')
-      const menu = deriveTodayMenu(data)
-      setCustomerMenu(menu.items)
-      setCustomerInfo(menu.hint)
-    } catch (error) {
-      setCustomerMenu([])
-      setCustomerInfo(error.message)
+      setAllDishes(Array.isArray(data) ? data : [])
+    } catch (err) {
+      setLoadError(err.message)
     } finally {
-      setCustomerLoading(false)
+      setLoading(false)
     }
   }
 
-  useEffect(() => {
-    let ignore = false
+  useEffect(() => { loadAll() }, [])
 
-    async function loadInitialData() {
-      try {
-        const data = await requestJson('/health')
-        if (!ignore) {
-          setHealth(
-            data.status === 'ok'
-              ? 'Backend erreichbar'
-              : 'Backend antwortet unerwartet',
-          )
-        }
-      } catch {
-        if (!ignore) {
-          setHealth('Backend nicht erreichbar')
-        }
-      }
-
-      if (!ignore) {
-        await fetchCustomerMenu()
-      }
-    }
-
-    loadInitialData()
-
-    return () => {
-      ignore = true
-    }
-  }, [])
-
-  async function loadRecords(nextSelectedId = null) {
-    const currentTable = tableName.trim()
-
-    if (!currentTable) {
-      setStatus('Bitte einen Tabellennamen eintragen.')
-      return
-    }
-
-    setIsLoading(true)
-    setStatus(`Lade Daten aus ${currentTable}...`)
-
-    try {
-      const data = await requestJson(`/api/${currentTable}`)
-      setRecords(data)
-
-      if (
-        nextSelectedId !== null &&
-        data.some((entry) => String(entry.id) === String(nextSelectedId))
-      ) {
-        setSelectedId(String(nextSelectedId))
-      } else if (data[0] && data[0].id !== undefined && data[0].id !== null) {
-        setSelectedId(String(data[0].id))
-      } else {
-        setSelectedId(null)
-      }
-
-      setStatus(`${data.length} Datensätze aus ${currentTable} geladen.`)
-    } catch (error) {
-      setStatus(error.message)
-      setRecords([])
-      setSelectedId(null)
-    } finally {
-      setIsLoading(false)
-    }
+  function shiftDate(days) {
+    setSelectedDate((prev) => addDays(prev, days))
   }
 
-  function parsePayload() {
-    try {
-      const parsed = JSON.parse(payloadText)
-
-      if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
-        throw new Error('JSON muss ein Objekt sein.')
-      }
-
-      return parsed
-    } catch (error) {
-      throw new Error(`Ungültiges JSON: ${error.message}`, { cause: error })
-    }
+  function handleDateInput(e) {
+    const parsed = new Date(e.target.value)
+    if (!Number.isNaN(parsed.getTime())) setSelectedDate(parsed)
   }
 
-  async function createRecord() {
-    const currentTable = tableName.trim()
-
-    if (!currentTable) {
-      setStatus('Bitte einen Tabellennamen eintragen.')
-      return
-    }
-
-    setIsLoading(true)
-
-    try {
-      const payload = parsePayload()
-      const data = await requestJson(`/api/${currentTable}`, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      })
-
-      setStatus(`Datensatz ${data.id ?? ''} wurde erstellt.`.trim())
-      await loadRecords(data.id ?? null)
-      if (currentTable === 'daily_dishes') {
-        await fetchCustomerMenu()
-      }
-    } catch (error) {
-      setStatus(error.message)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  async function updateRecord() {
-    const currentTable = tableName.trim()
-
-    if (!currentTable) {
-      setStatus('Bitte einen Tabellennamen eintragen.')
-      return
-    }
-
-    if (!selectedId) {
-      setStatus('Bitte zuerst einen Datensatz mit id auswählen.')
-      return
-    }
-
-    setIsLoading(true)
-
-    try {
-      const payload = parsePayload()
-      const data = await requestJson(`/api/${currentTable}/${selectedId}`, {
+  async function handleSave(payload) {
+    if (editDish?.id) {
+      await requestJson(`/api/daily_dishes/${editDish.id}`, {
         method: 'PUT',
         body: JSON.stringify(payload),
       })
-
-      setStatus(`Datensatz ${data.id ?? selectedId} wurde aktualisiert.`)
-      await loadRecords(selectedId)
-      if (currentTable === 'daily_dishes') {
-        await fetchCustomerMenu()
-      }
-    } catch (error) {
-      setStatus(error.message)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  async function deleteRecord() {
-    const currentTable = tableName.trim()
-
-    if (!currentTable) {
-      setStatus('Bitte einen Tabellennamen eintragen.')
-      return
-    }
-
-    if (!selectedId) {
-      setStatus('Bitte zuerst einen Datensatz mit id auswählen.')
-      return
-    }
-
-    setIsLoading(true)
-
-    try {
-      await requestJson(`/api/${currentTable}/${selectedId}`, {
-        method: 'DELETE',
+    } else {
+      await requestJson('/api/daily_dishes', {
+        method: 'POST',
+        body: JSON.stringify(payload),
       })
-
-      setStatus(`Datensatz ${selectedId} wurde gelöscht.`)
-      await loadRecords()
-      if (currentTable === 'daily_dishes') {
-        await fetchCustomerMenu()
-      }
-    } catch (error) {
-      setStatus(error.message)
-    } finally {
-      setIsLoading(false)
     }
+    setEditDish(null)
+    await loadAll()
   }
 
-  function selectRecord(record) {
-    if (record.id === undefined || record.id === null) {
-      setStatus(
-        'Dieser Datensatz hat keine id und kann nicht direkt bearbeitet werden.',
-      )
-      return
-    }
-
-    setSelectedId(String(record.id))
-    setPayloadText(JSON.stringify(record, null, 2))
-    setStatus(`Datensatz ${record.id} ausgewählt.`)
+  async function handleDelete() {
+    if (!editDish?.id) return
+    await requestJson(`/api/daily_dishes/${editDish.id}`, { method: 'DELETE' })
+    setEditDish(null)
+    await loadAll()
   }
-
-  const columns = Array.from(
-    records.reduce((keys, record) => {
-      Object.keys(record).forEach((key) => keys.add(key))
-      return keys
-    }, new Set()),
-  )
 
   return (
     <main className="app-shell">
-      <section className="hero-panel customer-hero">
+
+      {/* Header */}
+      <section className="hero-panel">
         <div>
           <p className="eyebrow">Online Speiseplan</p>
           <h1>Heute auf dem Teller</h1>
-          <p className="lead">
-            Kundenseite fuer die aktuellen Gerichte des Tages. Die Daten kommen
-            direkt aus <span>/api/daily_dishes</span>.
-          </p>
           <div className="view-switch">
             <button
               type="button"
-              className={
-                viewMode === 'kunde' ? 'secondary is-active' : 'secondary'
-              }
+              className={viewMode === 'kunde' ? 'secondary is-active' : 'secondary'}
               onClick={() => setViewMode('kunde')}
             >
-              Kundenansicht
+              Speiseplan
             </button>
             <button
               type="button"
-              className={
-                viewMode === 'admin' ? 'secondary is-active' : 'secondary'
-              }
+              className={viewMode === 'admin' ? 'secondary is-active' : 'secondary'}
               onClick={() => setViewMode('admin')}
             >
               Verwaltung
@@ -469,202 +297,145 @@ function App() {
 
         <div className="hero-status-grid">
           <article>
-            <span>Backend</span>
-            <strong>{health}</strong>
+            <span>Tag</span>
+            <strong>{formatDateLabel(selectedDate)}</strong>
           </article>
           <article>
-            <span>Heute</span>
-            <strong>{todayLabel}</strong>
+            <span>Gerichte heute</span>
+            <strong>{loading ? '…' : `${todayDishes.length} Gerichte`}</strong>
           </article>
           <article>
-            <span>Tagesgerichte</span>
-            <strong>
-              {customerLoading ? 'Lade...' : `${customerMenu.length} Gerichte`}
-            </strong>
+            <span>Gesamt in DB</span>
+            <strong>{loading ? '…' : `${allDishes.length} Einträge`}</strong>
           </article>
         </div>
       </section>
 
-      <section className="panel customer-panel">
-        <div className="panel-header customer-panel-header">
-          <div>
-            <p className="panel-kicker">Kundenbereich</p>
-            <h2>Gerichte des aktuellen Tages</h2>
-          </div>
-          <button
-            type="button"
-            onClick={fetchCustomerMenu}
-            disabled={customerLoading}
-          >
-            Aktualisieren
-          </button>
+      {/* Datumsnavigation */}
+      <div className="panel date-nav-panel">
+        <button
+          type="button"
+          className="date-nav-btn secondary"
+          onClick={() => shiftDate(-1)}
+          aria-label="Vorheriger Tag"
+        >
+          −
+        </button>
+        <div className="date-nav-center">
+          <strong className="date-nav-label">{formatDateLabel(selectedDate)}</strong>
+          <input
+            type="date"
+            className="date-nav-input"
+            value={toISODateOnly(selectedDate)}
+            onChange={handleDateInput}
+            aria-label="Datum wählen"
+          />
         </div>
+        <button
+          type="button"
+          className="date-nav-btn secondary"
+          onClick={() => shiftDate(1)}
+          aria-label="Nächster Tag"
+        >
+          +
+        </button>
+      </div>
 
-        <div className="status-box customer-info-box">
-          <span>Info</span>
-          <p>{customerInfo}</p>
-        </div>
-
-        {customerMenu.length === 0 ? (
-          <div className="empty-state customer-empty-state">
-            <p>
-              Es konnten keine Tagesgerichte gefunden werden. Pruefe die Tabelle{' '}
-              <code>daily_dishes</code> und optional Felder wie <code>datum</code>{' '}
-              oder <code>wochentag</code>.
-            </p>
-          </div>
-        ) : (
-          <div className="dish-grid">
-            {customerMenu.map((dish) => (
-              <CustomerDishCard
-                key={dish.id ?? JSON.stringify(dish)}
-                dish={dish}
-              />
-            ))}
-          </div>
-        )}
-      </section>
-
-      {viewMode === 'admin' ? (
-        <>
-          <section className="workspace-grid">
-            <article className="panel controls-panel">
-              <div className="panel-header">
-                <div>
-                  <p className="panel-kicker">Datenquelle</p>
-                  <h2>Tabelle laden</h2>
-                </div>
-              </div>
-
-              <label className="field">
-                <span>Tabellenname</span>
-                <input
-                  value={tableName}
-                  onChange={(event) => setTableName(event.target.value)}
-                  placeholder="daily_dishes"
-                />
-              </label>
-
-              <div className="button-row">
-                <button
-                  type="button"
-                  onClick={() => loadRecords()}
-                  disabled={isLoading || !tableName.trim()}
-                >
-                  Daten laden
-                </button>
-              </div>
-
-              <div className="status-box">
-                <span>Status</span>
-                <p>{status}</p>
-              </div>
-
-              <div className="hint-box">
-                <strong>Voraussetzung</strong>
-                <p>
-                  Deine Tabelle sollte eine Spalte <code>id</code> besitzen,
-                  weil das Backend fuer Update und Delete darauf zugreift.
-                </p>
-              </div>
-            </article>
-
-            <article className="panel editor-panel">
-              <div className="panel-header">
-                <div>
-                  <p className="panel-kicker">CRUD</p>
-                  <h2>JSON-Payload</h2>
-                </div>
-              </div>
-
-              <label className="field field-large">
-                <span>Request-Body fuer POST oder PUT</span>
-                <textarea
-                  value={payloadText}
-                  onChange={(event) => setPayloadText(event.target.value)}
-                  spellCheck="false"
-                />
-              </label>
-
-              <div className="button-row">
-                <button
-                  type="button"
-                  onClick={createRecord}
-                  disabled={isLoading || !tableName.trim()}
-                >
-                  Neu anlegen
-                </button>
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={updateRecord}
-                  disabled={isLoading || !selectedId}
-                >
-                  Aktualisieren
-                </button>
-                <button
-                  type="button"
-                  className="danger"
-                  onClick={deleteRecord}
-                  disabled={isLoading || !selectedId}
-                >
-                  Loeschen
-                </button>
-              </div>
-            </article>
-          </section>
-
-          <section className="panel table-panel admin-panel">
-            <div className="panel-header table-header">
-              <div>
-                <p className="panel-kicker">Datensaetze</p>
-                <h2>Antwort aus /api/{tableName.trim() || ':table'}</h2>
-              </div>
-              <span className="record-count">{records.length} Eintraege</span>
+      {/* Kundenansicht */}
+      {viewMode === 'kunde' && (
+        <section className="panel customer-panel">
+          <div className="panel-header customer-panel-header">
+            <div>
+              <p className="panel-kicker">Speiseplan</p>
+              <h2>Gerichte am {formatDateLabel(selectedDate)}</h2>
             </div>
+            <button type="button" onClick={loadAll} disabled={loading}>
+              Aktualisieren
+            </button>
+          </div>
 
-            {records.length === 0 ? (
-              <div className="empty-state">
-                <p>
-                  Keine Daten geladen. Trage einen Tabellennamen ein und lade
-                  die Datensaetze.
-                </p>
-              </div>
-            ) : (
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      {columns.map((column) => (
-                        <th key={column}>{column}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {records.map((record) => (
-                      <tr
-                        key={record.id ?? JSON.stringify(record)}
-                        className={
-                          String(record.id) === selectedId ? 'is-selected' : ''
-                        }
-                        onClick={() => selectRecord(record)}
-                      >
-                        {columns.map((column) => (
-                          <td key={`${record.id ?? column}-${column}`}>
-                            {formatValue(record[column])}
-                          </td>
-                        ))}
-                      </tr>
+          {loadError ? (
+            <div className="empty-state"><p>Fehler: {loadError}</p></div>
+          ) : loading ? (
+            <div className="empty-state"><p>Lade…</p></div>
+          ) : todayDishes.length === 0 ? (
+            <div className="empty-state">
+              <p>Keine Gerichte für diesen Tag eingetragen.</p>
+            </div>
+          ) : (
+            <div className="dish-grid">
+              {todayDishes
+                .slice()
+                .sort((a, b) => (a.pos ?? 0) - (b.pos ?? 0))
+                .map((dish) => (
+                  <DishCard key={dish.id} dish={dish} />
+                ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Verwaltungsansicht */}
+      {viewMode === 'admin' && (
+        <section className="panel admin-section">
+          <div className="panel-header">
+            <div>
+              <p className="panel-kicker">Verwaltung</p>
+              <h2>Einträge in daily_dishes</h2>
+            </div>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => setEditDish({})}
+            >
+              + Neuer Eintrag
+            </button>
+          </div>
+
+          {editDish !== null && (
+            <DishForm
+              initial={editDish?.id ? editDish : null}
+              onSave={handleSave}
+              onDelete={handleDelete}
+              onCancel={() => setEditDish(null)}
+            />
+          )}
+
+          {allDishes.length === 0 ? (
+            <div className="empty-state"><p>Keine Einträge vorhanden.</p></div>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Datum</th>
+                    <th>Pos</th>
+                    <th>Titel</th>
+                    <th>Preis</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allDishes
+                    .slice()
+                    .sort((a, b) => {
+                      const d = String(b.dish_date).localeCompare(String(a.dish_date))
+                      return d !== 0 ? d : (a.pos ?? 0) - (b.pos ?? 0)
+                    })
+                    .map((dish) => (
+                      <AdminRow
+                        key={dish.id}
+                        dish={dish}
+                        onSelect={setEditDish}
+                      />
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-        </>
-      ) : null}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
     </main>
   )
 }
-
-export default App
