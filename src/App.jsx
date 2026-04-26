@@ -51,23 +51,40 @@ function DishCard({ dish, index }) {
   return (
     <motion.article
       layout
-      initial={{ opacity: 0, y: 24, scale: 0.97 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 10 }}
-      transition={{ duration: 0.35, delay: index * 0.05, ease: 'easeOut' }}
-      className="group relative overflow-hidden rounded-3xl border border-amber-200/20 bg-linear-to-b from-amber-50/10 to-amber-950/25 p-6 shadow-[0_20px_45px_rgba(0,0,0,0.35)]"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        duration: 0.35,
+        delay: index * 0.04,
+        ease: [0.22, 1, 0.36, 1],
+      }}
+      className="group relative overflow-hidden rounded-3xl border border-amber-200/20 bg-linear-to-b from-blue-500 to-green-800 p-6 shadow-[0_20px_45px_rgba(0,0,0,0.35)]"
     >
       <div className="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-amber-200/10 blur-2xl transition group-hover:bg-amber-100/15" />
 
       <div className="mb-5 flex items-center justify-between gap-3">
-        <span className="rounded-full border border-amber-200/25 bg-amber-100/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-amber-100/90">
-          Position {dish.pos ?? '-'}
-        </span>
-        {price ? <strong className="text-sm font-extrabold text-orange-200">{price}</strong> : null}
+        {price ? (
+          <strong className="text-xl font-extrabold text-blue-200">
+            {price}
+          </strong>
+        ) : null}
       </div>
 
-      <h3 className="font-['Fraunces'] text-2xl leading-tight text-orange-50">{dish.title || 'Gericht'}</h3>
-      {dish.description ? <p className="mt-3 text-sm leading-relaxed text-amber-100/80">{dish.description}</p> : null}
+      {dish.is_out ? (
+        <h3 className="font-['Fraunces'] text-2xl leading-tight text-red-500 line-through">
+          {dish.title || 'Gericht'}
+        </h3>
+      ) : (
+        <h3 className="font-['Fraunces'] text-2xl leading-tight text-orange-50 ">
+          {dish.title || 'Gericht'}
+        </h3>
+      )}
+
+      {dish.description ? (
+        <p className="mt-3 text-sm leading-relaxed text-amber-100/80">
+          {dish.description}
+        </p>
+      ) : null}
     </motion.article>
   )
 }
@@ -125,7 +142,7 @@ export default function App() {
   }
 
   const todayDishes = useMemo(
-    () => filterByDate(allDishes, selectedDate).slice().sort((a, b) => (a.pos ?? 0) - (b.pos ?? 0)),
+    () => filterByDate(allDishes, selectedDate).slice().sort((a, b) => (a.price ?? 0) - (b.price ?? 0)),
     [allDishes, selectedDate],
   )
 
