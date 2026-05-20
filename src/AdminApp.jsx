@@ -3,7 +3,11 @@ import { useEffect, useMemo, useState } from 'react'
 const TABLE_NAME = 'daily_dishes'
 
 function isoDateToday() {
-  return new Date().toISOString().slice(0, 10)
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 function toInputDate(value) {
@@ -158,7 +162,9 @@ export default function AdminApp() {
     try {
       const payload = buildPayload(form)
       const isUpdate = selectedId !== null
-      const path = isUpdate ? `/api/${TABLE_NAME}/${selectedId}` : `/api/${TABLE_NAME}`
+      const path = isUpdate
+        ? `/api/${TABLE_NAME}/${selectedId}`
+        : `/api/${TABLE_NAME}`
       const method = isUpdate ? 'PUT' : 'POST'
 
       await requestJson(path, {
@@ -182,7 +188,9 @@ export default function AdminApp() {
   async function deleteDish() {
     if (selectedId === null) return
 
-    const confirmed = window.confirm(`Eintrag #${selectedId} wirklich loeschen?`)
+    const confirmed = window.confirm(
+      `Eintrag #${selectedId} wirklich loeschen?`,
+    )
     if (!confirmed) return
 
     setSaving(true)
@@ -190,7 +198,9 @@ export default function AdminApp() {
     setMessage('')
 
     try {
-      await requestJson(`/api/${TABLE_NAME}/${selectedId}`, { method: 'DELETE' })
+      await requestJson(`/api/${TABLE_NAME}/${selectedId}`, {
+        method: 'DELETE',
+      })
       await loadDishes()
       setSelectedId(null)
       setForm(emptyDish())
@@ -206,15 +216,25 @@ export default function AdminApp() {
     <main className="min-h-screen bg-[radial-gradient(circle_at_0%_0%,rgba(13,148,136,0.22),transparent_30%),radial-gradient(circle_at_100%_0%,rgba(245,158,11,0.2),transparent_28%),linear-gradient(180deg,#061a1c_0%,#0d2326_45%,#1d241f_100%)] px-4 py-6 text-teal-50 md:px-8 md:py-10">
       <div className="mx-auto grid w-full max-w-7xl gap-6 xl:grid-cols-[1.1fr_1.6fr]">
         <section className="rounded-3xl border border-teal-100/15 bg-[linear-gradient(160deg,rgba(45,212,191,0.11),rgba(30,41,59,0.35))] p-6 shadow-[0_28px_72px_rgba(0,0,0,0.35)] backdrop-blur md:p-7">
-          <p className="text-xs font-bold uppercase tracking-[0.24em] text-amber-200/90">Admin</p>
-          <h1 className="mt-2 font-['Fraunces'] text-4xl leading-tight text-teal-50">Daily Dishes bearbeiten</h1>
+          <p className="text-xs font-bold uppercase tracking-[0.24em] text-amber-200/90">
+            Admin
+          </p>
+          <h1 className="mt-2 font-['Fraunces'] text-4xl leading-tight text-teal-50">
+            Daily Dishes bearbeiten
+          </h1>
           <p className="mt-3 text-sm text-teal-100/80">
-            Tabelle <code className="rounded bg-black/30 px-1.5 py-0.5">{TABLE_NAME}</code> direkt ueber die API pflegen.
+            Tabelle{' '}
+            <code className="rounded bg-black/30 px-1.5 py-0.5">
+              {TABLE_NAME}
+            </code>{' '}
+            direkt ueber die API pflegen.
           </p>
 
           <form onSubmit={saveDish} className="mt-6 space-y-4">
             <label className="block">
-              <span className="mb-1.5 block text-sm text-teal-100/90">Datum</span>
+              <span className="mb-1.5 block text-sm text-teal-100/90">
+                Datum
+              </span>
               <input
                 type="date"
                 name="dish_date"
@@ -227,7 +247,9 @@ export default function AdminApp() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block">
-                <span className="mb-1.5 block text-sm text-teal-100/90">Position</span>
+                <span className="mb-1.5 block text-sm text-teal-100/90">
+                  Position
+                </span>
                 <input
                   type="number"
                   name="pos"
@@ -239,7 +261,9 @@ export default function AdminApp() {
               </label>
 
               <label className="block">
-                <span className="mb-1.5 block text-sm text-teal-100/90">Preis (EUR)</span>
+                <span className="mb-1.5 block text-sm text-teal-100/90">
+                  Preis (EUR)
+                </span>
                 <input
                   type="number"
                   step="0.01"
@@ -254,7 +278,9 @@ export default function AdminApp() {
             </div>
 
             <label className="block">
-              <span className="mb-1.5 block text-sm text-teal-100/90">Titel</span>
+              <span className="mb-1.5 block text-sm text-teal-100/90">
+                Titel
+              </span>
               <input
                 type="text"
                 name="title"
@@ -267,7 +293,9 @@ export default function AdminApp() {
             </label>
 
             <label className="block">
-              <span className="mb-1.5 block text-sm text-teal-100/90">Beschreibung</span>
+              <span className="mb-1.5 block text-sm text-teal-100/90">
+                Beschreibung
+              </span>
               <textarea
                 name="description"
                 value={form.description}
@@ -285,7 +313,9 @@ export default function AdminApp() {
                 onChange={handleChange}
                 className="h-4 w-4"
               />
-              <span className="text-sm text-teal-100">Gericht ausverkauft (`is_out`)</span>
+              <span className="text-sm text-teal-100">
+                Gericht ausverkauft (`is_out`)
+              </span>
             </label>
 
             <div className="flex flex-wrap gap-3 pt-1">
@@ -294,7 +324,11 @@ export default function AdminApp() {
                 className="rounded-full bg-linear-to-r from-teal-400 to-emerald-500 px-4 py-2.5 text-sm font-bold text-slate-900 transition hover:-translate-y-0.5 disabled:opacity-50"
                 disabled={saving}
               >
-                {saving ? 'Speichere...' : selectedId ? 'Aenderungen speichern' : 'Neuen Eintrag speichern'}
+                {saving
+                  ? 'Speichere...'
+                  : selectedId
+                    ? 'Aenderungen speichern'
+                    : 'Neuen Eintrag speichern'}
               </button>
 
               <button
@@ -317,18 +351,26 @@ export default function AdminApp() {
           </form>
 
           {error ? (
-            <p className="mt-4 rounded-xl border border-rose-300/40 bg-rose-900/25 px-3 py-2 text-sm text-rose-100">{error}</p>
+            <p className="mt-4 rounded-xl border border-rose-300/40 bg-rose-900/25 px-3 py-2 text-sm text-rose-100">
+              {error}
+            </p>
           ) : null}
           {message ? (
-            <p className="mt-4 rounded-xl border border-emerald-300/35 bg-emerald-900/20 px-3 py-2 text-sm text-emerald-100">{message}</p>
+            <p className="mt-4 rounded-xl border border-emerald-300/35 bg-emerald-900/20 px-3 py-2 text-sm text-emerald-100">
+              {message}
+            </p>
           ) : null}
         </section>
 
         <section className="rounded-3xl border border-teal-100/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(15,23,42,0.4))] p-5 shadow-[0_28px_72px_rgba(0,0,0,0.35)] md:p-6">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-200/90">Datensaetze</p>
-              <h2 className="mt-1 font-['Fraunces'] text-3xl text-teal-50">{visibleDishes.length} Eintraege sichtbar</h2>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-200/90">
+                Datensaetze
+              </p>
+              <h2 className="mt-1 font-['Fraunces'] text-3xl text-teal-50">
+                {visibleDishes.length} Eintraege sichtbar
+              </h2>
             </div>
 
             <button
@@ -383,11 +425,15 @@ export default function AdminApp() {
                       }`}
                     >
                       <td className="px-3 py-2">{dish.id}</td>
-                      <td className="px-3 py-2">{toInputDate(dish.dish_date)}</td>
+                      <td className="px-3 py-2">
+                        {toInputDate(dish.dish_date)}
+                      </td>
                       <td className="px-3 py-2">{dish.pos ?? '-'}</td>
                       <td className="px-3 py-2">{dish.title || '-'}</td>
                       <td className="px-3 py-2">{dish.price ?? '-'}</td>
-                      <td className="px-3 py-2">{dish.is_out ? 'Ja' : 'Nein'}</td>
+                      <td className="px-3 py-2">
+                        {dish.is_out ? 'Ja' : 'Nein'}
+                      </td>
                     </tr>
                   )
                 })}

@@ -13,7 +13,16 @@ function formatDateLabel(date) {
 }
 
 function toISODateOnly(date) {
-  return date.toISOString().slice(0, 10)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function parseInputDate(value) {
+  const [year, month, day] = String(value).split('-').map(Number)
+  if (!year || !month || !day) return null
+  return new Date(year, month - 1, day)
 }
 
 function addDays(date, days) {
@@ -30,7 +39,9 @@ async function requestJson(path, options = {}) {
   const rawText = await response.text()
   const data = rawText ? JSON.parse(rawText) : null
   if (!response.ok) {
-    throw new Error(data?.error || `Request failed with status ${response.status}`)
+    throw new Error(
+      data?.error || `Request failed with status ${response.status}`,
+    )
   }
   return data
 }
@@ -38,12 +49,17 @@ async function requestJson(path, options = {}) {
 function formatPrice(value) {
   const num = Number(value)
   if (!Number.isFinite(num)) return null
-  return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(num)
+  return new Intl.NumberFormat('de-DE', {
+    style: 'currency',
+    currency: 'EUR',
+  }).format(num)
 }
 
 function filterByDate(dishes, targetDate) {
   const iso = toISODateOnly(targetDate)
-  return dishes.filter((d) => d.dish_date && String(d.dish_date).slice(0, 10) === iso)
+  return dishes.filter(
+    (d) => d.dish_date && String(d.dish_date).slice(0, 10) === iso,
+  )
 }
 
 function DishCard({ dish, index }) {
@@ -137,12 +153,15 @@ export default function App() {
   }
 
   function handleDateInput(event) {
-    const parsed = new Date(event.target.value)
-    if (!Number.isNaN(parsed.getTime())) setSelectedDate(parsed)
+    const parsed = parseInputDate(event.target.value)
+    if (parsed && !Number.isNaN(parsed.getTime())) setSelectedDate(parsed)
   }
 
   const todayDishes = useMemo(
-    () => filterByDate(allDishes, selectedDate).slice().sort((a, b) => (a.price ?? 0) - (b.price ?? 0)),
+    () =>
+      filterByDate(allDishes, selectedDate)
+        .slice()
+        .sort((a, b) => (a.price ?? 0) - (b.price ?? 0)),
     [allDishes, selectedDate],
   )
 
@@ -157,20 +176,33 @@ export default function App() {
         >
           <div className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-amber-200/90">Online Speiseplan</p>
-              <h1 className="mt-2 font-['Fraunces'] text-4xl leading-[1.03] text-orange-50 md:text-6xl">Kantine mit Seele</h1>
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-amber-200/90">
+                Online Speiseplan
+              </p>
+              <h1 className="mt-2 font-['Fraunces'] text-4xl leading-[1.03] text-orange-50 md:text-6xl">
+                Flora
+              </h1>
               <p className="mt-4 max-w-xl text-sm leading-relaxed text-amber-100/80 md:text-base">
-                Frisch gekocht, taeglich neu. Waehle ein Datum und entdecke die Gerichte in warmen Farben.
+                Frisch gekocht, taeglich neu. Waehle ein Datum und entdecke die
+                Gerichte in warmen Farben.
               </p>
             </div>
             <div className="grid gap-3">
               <article className="rounded-2xl border border-amber-100/20 bg-amber-50/5 p-4">
-                <span className="block text-xs uppercase tracking-[0.14em] text-amber-200/80">Tag</span>
-                <strong className="mt-1 block font-semibold text-orange-50">{formatDateLabel(selectedDate)}</strong>
+                <span className="block text-xs uppercase tracking-[0.14em] text-amber-200/80">
+                  Tag
+                </span>
+                <strong className="mt-1 block font-semibold text-orange-50">
+                  {formatDateLabel(selectedDate)}
+                </strong>
               </article>
               <article className="rounded-2xl border border-amber-100/20 bg-amber-50/5 p-4">
-                <span className="block text-xs uppercase tracking-[0.14em] text-amber-200/80">Gerichte heute</span>
-                <strong className="mt-1 block font-semibold text-orange-50">{loading ? '...' : `${todayDishes.length} Gerichte`}</strong>
+                <span className="block text-xs uppercase tracking-[0.14em] text-amber-200/80">
+                  Gerichte heute
+                </span>
+                <strong className="mt-1 block font-semibold text-orange-50">
+                  {loading ? '...' : `${todayDishes.length} Gerichte`}
+                </strong>
               </article>
             </div>
           </div>
@@ -192,7 +224,9 @@ export default function App() {
               -
             </button>
             <div className="flex-1 text-center">
-              <strong className="block text-base font-bold text-orange-50 md:text-lg">{formatDateLabel(selectedDate)}</strong>
+              <strong className="block text-base font-bold text-orange-50 md:text-lg">
+                {formatDateLabel(selectedDate)}
+              </strong>
               <input
                 type="date"
                 className="mt-2 rounded-xl border border-amber-100/20 bg-black/25 px-3 py-2 text-sm text-orange-50 outline-none transition focus:border-orange-200/60"
@@ -215,8 +249,12 @@ export default function App() {
         <section className="mt-6 rounded-3xl border border-amber-100/15 bg-[linear-gradient(180deg,rgba(255,251,235,0.04),rgba(41,23,15,0.65))] p-5 shadow-[0_22px_65px_rgba(0,0,0,0.35)] md:p-7">
           <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-200/90">Speiseplan</p>
-              <h2 className="mt-1 font-['Fraunces'] text-2xl text-orange-50 md:text-3xl">Gerichte am {formatDateLabel(selectedDate)}</h2>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-200/90">
+                Speiseplan
+              </p>
+              <h2 className="mt-1 font-['Fraunces'] text-2xl text-orange-50 md:text-3xl">
+                Gerichte am {formatDateLabel(selectedDate)}
+              </h2>
             </div>
             <button
               type="button"
@@ -229,7 +267,9 @@ export default function App() {
           </div>
 
           {loadError ? (
-            <div className="rounded-2xl border border-rose-300/30 bg-rose-900/25 p-4 text-rose-100">Fehler: {loadError}</div>
+            <div className="rounded-2xl border border-rose-300/30 bg-rose-900/25 p-4 text-rose-100">
+              Fehler: {loadError}
+            </div>
           ) : loading ? (
             <motion.div
               initial={{ opacity: 0 }}
@@ -243,7 +283,10 @@ export default function App() {
               Keine Gerichte fuer diesen Tag eingetragen.
             </div>
           ) : (
-            <motion.div layout className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <motion.div
+              layout
+              className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
+            >
               <AnimatePresence mode="popLayout">
                 {todayDishes.map((dish, index) => (
                   <DishCard key={dish.id} dish={dish} index={index} />
